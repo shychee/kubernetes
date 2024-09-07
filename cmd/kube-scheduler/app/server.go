@@ -77,10 +77,9 @@ func init() {
 // Option configures a framework.Registry.
 type Option func(runtime.Registry) error
 
-// NewSchedulerCommand creates a *cobra.Command object with default parameters and registryOptions
+// 1.2 NewSchedulerCommand 创建一个 *cobra.Command 对象，并使用默认参数和 registryOptions 进行配置（k8s-scheduler-chain）
 func NewSchedulerCommand(registryOptions ...Option) *cobra.Command {
-	// explicitly register (if not already registered) the kube effective version and feature gate in DefaultComponentGlobalsRegistry,
-	// which will be used in NewOptions.
+	// 在 utilversion.DefaultComponentGlobalsRegistry 注册默认的组件版本和特性门控，这将在 NewOptions 中使用
 	_, _ = utilversion.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(
 		utilversion.DefaultKubeComponent, utilversion.DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
 	opts := options.NewOptions()
@@ -130,7 +129,7 @@ for more information about scheduling and the kube-scheduler component.`,
 	return cmd
 }
 
-// runCommand runs the scheduler.
+// 1.4 runCommand 执行调度（k8s-scheduler-chain）
 func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Option) error {
 	verflag.PrintAndExitIfRequested()
 	fg := opts.ComponentGlobalsRegistry.FeatureGateFor(utilversion.DefaultKubeComponent)
@@ -150,6 +149,7 @@ func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Op
 		cancel()
 	}()
 
+	// 2. Setup 初始化（k8s-scheduler-chain）
 	cc, sched, err := Setup(ctx, opts, registryOptions...)
 	if err != nil {
 		return err
@@ -380,7 +380,7 @@ func WithPlugin(name string, factory runtime.PluginFactory) Option {
 	}
 }
 
-// Setup creates a completed config and a scheduler based on the command args and options
+// 2.2 Setup 安装程序根据命令参数和选项创建一个完整的配置和一个调度程序。（k8s-scheduler-chain）
 func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions ...Option) (*schedulerserverconfig.CompletedConfig, *scheduler.Scheduler, error) {
 	if cfg, err := latest.Default(); err != nil {
 		return nil, nil, err

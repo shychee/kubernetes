@@ -27,7 +27,10 @@ import (
 )
 
 func main() {
+	// 1. k8s-scheduler 源码调用链分析（k8s-scheduler-chain）
+	// 1.1 scheduler 启动主函数（k8s-scheduler-chain）
 	command := app.NewSchedulerCommand()
+	// 1.3 执行命令（k8s-scheduler-chain）
 	code := cli.Run(command)
 	os.Exit(code)
 }
