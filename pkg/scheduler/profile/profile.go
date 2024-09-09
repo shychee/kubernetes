@@ -31,10 +31,11 @@ import (
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 )
 
-// RecorderFactory builds an EventRecorder for a given scheduler name.
+// RecorderFactory builds an EventRecorder for a given scheduler name. - 为给定的调度器名称构建一个 EventRecorder。
 type RecorderFactory func(string) events.EventRecorder
 
-// newProfile builds a Profile for the given configuration.
+// newProfile builds a Profile for the given configuration. - 为给定的配置构建一个 Profile。
+// 6、7、8、9 - (3)初始化 profiles、fwk 实例（k8s-scheduler-chain）
 func newProfile(ctx context.Context, cfg config.KubeSchedulerProfile, r frameworkruntime.Registry, recorderFact RecorderFactory,
 	opts ...frameworkruntime.Option) (framework.Framework, error) {
 	recorder := recorderFact(cfg.SchedulerName)
@@ -45,7 +46,8 @@ func newProfile(ctx context.Context, cfg config.KubeSchedulerProfile, r framewor
 // Map holds frameworks indexed by scheduler name.
 type Map map[string]framework.Framework
 
-// NewMap builds the frameworks given by the configuration, indexed by name.
+// NewMap builds the frameworks given by the configuration, indexed by name. - 根据配置构建框架，按名称索引。
+// 6、7、8、9 - (1)初始化 profiles、fwk 实例（k8s-scheduler-chain）
 func NewMap(ctx context.Context, cfgs []config.KubeSchedulerProfile, r frameworkruntime.Registry, recorderFact RecorderFactory,
 	opts ...frameworkruntime.Option) (Map, error) {
 	m := make(Map)
@@ -64,7 +66,7 @@ func NewMap(ctx context.Context, cfgs []config.KubeSchedulerProfile, r framework
 	return m, nil
 }
 
-// HandlesSchedulerName returns whether a profile handles the given scheduler name.
+// HandlesSchedulerName returns whether a profile handles the given scheduler name. - 返回一个 profile 是否处理给定的调度器名称。
 func (m Map) HandlesSchedulerName(name string) bool {
 	_, ok := m[name]
 	return ok

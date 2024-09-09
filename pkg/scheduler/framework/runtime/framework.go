@@ -48,8 +48,8 @@ const (
 	maxTimeout = 15 * time.Minute
 )
 
-// frameworkImpl is the component responsible for initializing and running scheduler
-// plugins.
+// frameworkImpl is the component responsible for initializing and running scheduler plugins. - 负责初始化和运行调度器插件的组件。
+// 6、7、8、9 - (5)初始化 profiles、fwk 实例（k8s-scheduler-chain）
 type frameworkImpl struct {
 	registry             Registry
 	snapshotSharedLister framework.SharedLister
@@ -256,7 +256,8 @@ func defaultFrameworkOptions(stopCh <-chan struct{}) frameworkOptions {
 
 var _ framework.Framework = &frameworkImpl{}
 
-// NewFramework initializes plugins given the configuration and the registry.
+// NewFramework initializes plugins given the configuration and the registry. - 根据配置和注册表初始化插件。
+// 6、7、8、9 - (4)初始化 profiles、fwk 实例（k8s-scheduler-chain）
 func NewFramework(ctx context.Context, r Registry, profile *config.KubeSchedulerProfile, opts ...Option) (framework.Framework, error) {
 	options := defaultFrameworkOptions(ctx.Done())
 	for _, opt := range opts {

@@ -52,60 +52,66 @@ import (
 )
 
 const (
-	// Duration the scheduler will wait before expiring an assumed pod.
-	// See issue #106361 for more details about this parameter and its value.
+	// Duration the scheduler will wait before expiring an assumed pod. - 调度器在过期假设的 pod 之前等待的时间。
+	// See issue #106361 for more details about this parameter and its value. - 查看 issue #106361 了解更多关于此参数及其值的详细信息。
 	durationToExpireAssumedPod time.Duration = 0
 )
 
-// ErrNoNodesAvailable is used to describe the error that no nodes available to schedule pods.
+// ErrNoNodesAvailable is used to describe the error that no nodes available to schedule pods. - 描述没有节点可用于调度 pod 的错误。
 var ErrNoNodesAvailable = fmt.Errorf("no nodes available to schedule pods")
 
-// Scheduler watches for new unscheduled pods. It attempts to find
-// nodes that they fit on and writes bindings back to the api server.
+// Scheduler 监听到新的或未调度的 Pods，尝试找到适合的节点来运行它们，并将绑定信息写回 API 服务器。
+// 3、16 初始化 scheduler 实例（k8s-scheduler-chain）
 type Scheduler struct {
 	// It is expected that changes made via Cache will be observed
 	// by NodeLister and Algorithm.
+	// 预期通过 Cache 进行的更改将由 NodeLister 和 Algorithm 观察到。
 	Cache internalcache.Cache
-
+	// Extenders 是调度器扩展程序的列表，用于在调度过程中进行额外的过滤和评分。
 	Extenders []framework.Extender
 
 	// NextPod should be a function that blocks until the next pod
 	// is available. We don't use a channel for this, because scheduling
 	// a pod may take some amount of time and we don't want pods to get
 	// stale while they sit in a channel.
+	// NextPod 应该是一个函数，该函数会阻塞，直到下一个 Pod 可用。我们不使用 channel 来实现这一点，因为调度一个 Pod 可能需要一些时间，我们不希望 Pod 在 channel 中等待时过期。
 	NextPod func(logger klog.Logger) (*framework.QueuedPodInfo, error)
 
-	// FailureHandler is called upon a scheduling failure.
+	// FailureHandler is called upon a scheduling failure. - FailureHandler 在调度失败时调用。
 	FailureHandler FailureHandlerFn
 
 	// SchedulePod tries to schedule the given pod to one of the nodes in the node list.
 	// Return a struct of ScheduleResult with the name of suggested host on success,
 	// otherwise will return a FitError with reasons.
+	// SchedulePod 尝试将给定的 Pod 调度到节点列表中的一个节点。成功时返回一个包含建议主机名称的 ScheduleResult 结构体，否则将返回一个包含原因的 FitError。
 	SchedulePod func(ctx context.Context, fwk framework.Framework, state *framework.CycleState, pod *v1.Pod) (ScheduleResult, error)
 
 	// Close this to shut down the scheduler.
+	// StopEverything 关闭调度器。
 	StopEverything <-chan struct{}
 
-	// SchedulingQueue holds pods to be scheduled
+	// SchedulingQueue holds pods to be scheduled - SchedulingQueue 持有待调度的 Pods
 	SchedulingQueue internalqueue.SchedulingQueue
 
-	// Profiles are the scheduling profiles.
+	// Profiles are the scheduling profiles. - Profiles 是调度配置文件的集合。
 	Profiles profile.Map
-
+	// client 是 Kubernetes 客户端。
 	client clientset.Interface
-
+	// nodeInfoSnapshot 是节点信息的快照。
 	nodeInfoSnapshot *internalcache.Snapshot
-
+	// percentageOfNodesToScore 是调度器在评分时评估的节点百分比。
 	percentageOfNodesToScore int32
-
+	// nextStartNodeIndex 是下一个要评估的节点索引。
 	nextStartNodeIndex int
 
 	// logger *must* be initialized when creating a Scheduler,
 	// otherwise logging functions will access a nil sink and
 	// panic.
+	// logger 是日志记录器。logger *must* 在创建 Scheduler 时初始化，否则日志记录函数将访问一个 nil 接收器并引发 panic。
 	logger klog.Logger
 
 	// registeredHandlers contains the registrations of all handlers. It's used to check if all handlers have finished syncing before the scheduling cycles start.
+	// registeredHandlers 包含所有处理程序的注册。在调度周期开始之前，它用于检查所有处理程序是否已同步完成。
 	registeredHandlers []cache.ResourceEventHandlerRegistration
 }
 
@@ -117,12 +123,13 @@ func (sched *Scheduler) applyDefaultHandlers() {
 type schedulerOptions struct {
 	componentConfigVersion string
 	kubeConfig             *restclient.Config
-	// Overridden by profile level percentageOfNodesToScore if set in v1.
+	// Overridden by profile level percentageOfNodesToScore if set in v1. - 如果设置，则由 profile 级别的 percentageOfNodesToScore 覆盖。
 	percentageOfNodesToScore          int32
 	podInitialBackoffSeconds          int64
 	podMaxBackoffSeconds              int64
 	podMaxInUnschedulablePodsDuration time.Duration
 	// Contains out-of-tree plugins to be merged with the in-tree registry.
+	// 包含了需要与 Kubernetes 内置(in-tree)插件注册表合并的外部(out-of-tree)插件。这允许调度器同时使用内置插件和外部开发的插件。
 	frameworkOutOfTreeRegistry frameworkruntime.Registry
 	profiles                   []schedulerapi.KubeSchedulerProfile
 	extenders                  []schedulerapi.Extender
@@ -134,16 +141,16 @@ type schedulerOptions struct {
 // Option configures a Scheduler
 type Option func(*schedulerOptions)
 
-// ScheduleResult represents the result of scheduling a pod.
+// ScheduleResult represents the result of scheduling a pod. - ScheduleResult 表示调度一个 Pod 的结果。
 type ScheduleResult struct {
-	// Name of the selected node.
+	// Name of the selected node. - 选定节点的名称。
 	SuggestedHost string
 	// The number of nodes the scheduler evaluated the pod against in the filtering
-	// phase and beyond.
+	// phase and beyond. - 调度器在过滤阶段评估 Pod 的节点数量。
 	EvaluatedNodes int
-	// The number of nodes out of the evaluated ones that fit the pod.
+	// The number of nodes out of the evaluated ones that fit the pod. - 在评估的节点中，符合 Pod 的节点数量。
 	FeasibleNodes int
-	// The nominating info for scheduling cycle.
+	// The nominating info for scheduling cycle. - 调度周期的提名信息。
 	nominatingInfo *framework.NominatingInfo
 }
 
@@ -290,6 +297,7 @@ func New(ctx context.Context,
 	podLister := informerFactory.Core().V1().Pods().Lister()
 	nodeLister := informerFactory.Core().V1().Nodes().Lister()
 
+	// 4、5 - (1)初始化 snapshot 实例（k8s-scheduler-chain）
 	snapshot := internalcache.NewEmptySnapshot()
 	metricsRecorder := metrics.NewMetricsAsyncRecorder(1000, time.Second, stopEverything)
 	// waitingPods holds all the pods that are in the scheduler and waiting in the permit stage
@@ -301,6 +309,7 @@ func New(ctx context.Context,
 		resourceClaimCache = assumecache.NewAssumeCache(logger, resourceClaimInformer, "ResourceClaim", "", nil)
 	}
 
+	// 6、7、8、9 - (2)初始化 profiles、fwk 实例（k8s-scheduler-chain）
 	profiles, err := profile.NewMap(ctx, options.profiles, registry, recorderFactory,
 		frameworkruntime.WithComponentConfigVersion(options.componentConfigVersion),
 		frameworkruntime.WithClientSet(client),
@@ -337,6 +346,7 @@ func New(ctx context.Context,
 		return nil, returnErr
 	}
 
+	// 10、11、12 - (1)初始化 podQueue 实例（k8s-scheduler-chain）
 	podQueue := internalqueue.NewSchedulingQueue(
 		profiles[options.profiles[0].SchedulerName].QueueSortFunc(),
 		informerFactory,
@@ -360,6 +370,7 @@ func New(ctx context.Context,
 	debugger := cachedebugger.New(nodeLister, podLister, schedulerCache, podQueue)
 	debugger.ListenForSignal(ctx)
 
+	// 3、16 创建一个 Scheduler 结构体，并初始化其字段。（k8s-scheduler-chain）
 	sched := &Scheduler{
 		Cache:                    schedulerCache,
 		client:                   client,

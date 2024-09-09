@@ -128,6 +128,7 @@ type SchedulingQueue interface {
 }
 
 // NewSchedulingQueue initializes a priority queue as a new scheduling queue.
+// 10、11、12 - (2)初始化 podQueue 实例（k8s-scheduler-chain）
 func NewSchedulingQueue(
 	lessFn framework.LessFunc,
 	informerFactory informers.SharedInformerFactory,
@@ -135,15 +136,17 @@ func NewSchedulingQueue(
 	return NewPriorityQueue(lessFn, informerFactory, opts...)
 }
 
-// PriorityQueue implements a scheduling queue.
-// The head of PriorityQueue is the highest priority pending pod. This structure
-// has two sub queues and a additional data structure, namely: activeQ,
-// backoffQ and unschedulablePods.
-//   - activeQ holds pods that are being considered for scheduling.
-//   - backoffQ holds pods that moved from unschedulablePods and will move to
-//     activeQ when their backoff periods complete.
-//   - unschedulablePods holds pods that were already attempted for scheduling and
-//     are currently determined to be unschedulable.
+// PriorityQueue implements a scheduling queue. - 实现一个调度队列。
+// The head of PriorityQueue is the highest priority pending pod.
+// This structure has two sub queues and a additional data structure, namely: activeQ, backoffQ and unschedulablePods.
+// 包含两个子队列和一个额外的数据结构，即：activeQ、backoffQ 和 unschedulablePods。
+//   - activeQ holds pods that are being considered for scheduling. - activeQ 持有正在考虑调度的 pod。
+//   - backoffQ holds pods that moved from unschedulablePods and will move to activeQ when their backoff periods complete.
+//     backoffQ 持有从 unschedulablePods 移动过来的 pod，当它们的回退期完成后，将移动到 activeQ。
+//   - unschedulablePods holds pods that were already attempted for scheduling and are currently determined to be unschedulable.
+//     unschedulablePods 持有已经被尝试调度的 pod，并且当前被确定为无法调度的 pod。
+//
+// 10、11、12 - (4)初始化 podQueue 实例（k8s-scheduler-chain）
 type PriorityQueue struct {
 	*nominator
 
@@ -155,134 +158,134 @@ type PriorityQueue struct {
 	// Correct locking order is: lock > activeQueue.lock > nominator.nLock.
 	lock sync.RWMutex
 
-	// pod initial backoff duration.
+	// pod initial backoff duration. - Pod 初始化 backoff 的持续时间
 	podInitialBackoffDuration time.Duration
-	// pod maximum backoff duration.
+	// pod maximum backoff duration. - Pod 最大 backoff 的持续时间
 	podMaxBackoffDuration time.Duration
-	// the maximum time a pod can stay in the unschedulablePods.
+	// the maximum time a pod can stay in the unschedulablePods. - Pod 在 unschedulablePods 中可以停留的最大时间
 	podMaxInUnschedulablePodsDuration time.Duration
 
 	activeQ activeQueuer
 	// podBackoffQ is a heap ordered by backoff expiry. Pods which have completed backoff
-	// are popped from this heap before the scheduler looks at activeQ
+	// are popped from this heap before the scheduler looks at activeQ - Pods 完成 backoff 后，从该堆中弹出，然后调度器查看 activeQ
 	podBackoffQ *heap.Heap[*framework.QueuedPodInfo]
-	// unschedulablePods holds pods that have been tried and determined unschedulable.
+	// unschedulablePods holds pods that have been tried and determined unschedulable. - 持有已经被尝试调度的 pod，并且当前被确定为无法调度的 pod
 	unschedulablePods *UnschedulablePods
 	// moveRequestCycle caches the sequence number of scheduling cycle when we
 	// received a move request. Unschedulable pods in and before this scheduling
 	// cycle will be put back to activeQueue if we were trying to schedule them
-	// when we received move request.
+	// when we received move request. - 如果我们试图在收到移动请求时调度它们，则将它们放回 activeQueue。
 	// TODO: this will be removed after SchedulingQueueHint goes to stable and the feature gate is removed.
 	moveRequestCycle int64
 
-	// preEnqueuePluginMap is keyed with profile name, valued with registered preEnqueue plugins.
+	// preEnqueuePluginMap is keyed with profile name, valued with registered preEnqueue plugins. - 预处理插件映射，键为 profile 名称，值为注册的预处理插件。
 	preEnqueuePluginMap map[string][]framework.PreEnqueuePlugin
-	// queueingHintMap is keyed with profile name, valued with registered queueing hint functions.
+	// queueingHintMap is keyed with profile name, valued with registered queueing hint functions. - 队列提示映射，键为 profile 名称，值为注册的队列提示函数。
 	queueingHintMap QueueingHintMapPerProfile
 
 	nsLister listersv1.NamespaceLister
 
 	metricsRecorder metrics.MetricAsyncRecorder
-	// pluginMetricsSamplePercent is the percentage of plugin metrics to be sampled.
+	// pluginMetricsSamplePercent is the percentage of plugin metrics to be sampled. - 插件指标采样百分比
 	pluginMetricsSamplePercent int
 
-	// isSchedulingQueueHintEnabled indicates whether the feature gate for the scheduling queue is enabled.
+	// isSchedulingQueueHintEnabled indicates whether the feature gate for the scheduling queue is enabled. - 调度队列的特性门控是否启用
 	isSchedulingQueueHintEnabled bool
 }
 
-// QueueingHintFunction is the wrapper of QueueingHintFn that has PluginName.
+// QueueingHintFunction is the wrapper of QueueingHintFn that has PluginName. - 队列提示函数，包含插件名称
 type QueueingHintFunction struct {
 	PluginName     string
 	QueueingHintFn framework.QueueingHintFn
 }
 
-// clusterEvent has the event and involved objects.
+// clusterEvent has the event and involved objects. - 集群事件，包含事件和涉及的对象
 type clusterEvent struct {
 	event framework.ClusterEvent
-	// oldObj is the object that involved this event.
+	// oldObj is the object that involved this event. - 旧对象，涉及此事件的对象
 	oldObj interface{}
-	// newObj is the object that involved this event.
+	// newObj is the object that involved this event. - 新对象，涉及此事件的对象
 	newObj interface{}
 }
 
 type priorityQueueOptions struct {
-	clock                             clock.Clock
-	podInitialBackoffDuration         time.Duration
-	podMaxBackoffDuration             time.Duration
-	podMaxInUnschedulablePodsDuration time.Duration
-	podLister                         listersv1.PodLister
-	metricsRecorder                   metrics.MetricAsyncRecorder
-	pluginMetricsSamplePercent        int
-	preEnqueuePluginMap               map[string][]framework.PreEnqueuePlugin
-	queueingHintMap                   QueueingHintMapPerProfile
+	clock                             clock.Clock                             // 时钟
+	podInitialBackoffDuration         time.Duration                           // Pod 初始化 backoff 的持续时间
+	podMaxBackoffDuration             time.Duration                           // Pod 最大 backoff 的持续时间
+	podMaxInUnschedulablePodsDuration time.Duration                           // Pod 在 unschedulablePods 中可以停留的最大时间
+	podLister                         listersv1.PodLister                     // Pod 列表
+	metricsRecorder                   metrics.MetricAsyncRecorder             // 指标记录器
+	pluginMetricsSamplePercent        int                                     // 插件指标采样百分比
+	preEnqueuePluginMap               map[string][]framework.PreEnqueuePlugin // 预处理插件映射，键为 profile 名称，值为注册的预处理插件
+	queueingHintMap                   QueueingHintMapPerProfile               // 队列提示映射，键为 profile 名称，值为注册的队列提示函数
 }
 
-// Option configures a PriorityQueue
+// Option configures a PriorityQueue - 配置一个 PriorityQueue
 type Option func(*priorityQueueOptions)
 
-// WithClock sets clock for PriorityQueue, the default clock is clock.RealClock.
+// WithClock sets clock for PriorityQueue, the default clock is clock.RealClock. - 设置 PriorityQueue 的时钟，默认时钟是 clock.RealClock
 func WithClock(clock clock.Clock) Option {
 	return func(o *priorityQueueOptions) {
 		o.clock = clock
 	}
 }
 
-// WithPodInitialBackoffDuration sets pod initial backoff duration for PriorityQueue.
+// WithPodInitialBackoffDuration sets pod initial backoff duration for PriorityQueue. - 设置 Pod 初始化 backoff 的持续时间
 func WithPodInitialBackoffDuration(duration time.Duration) Option {
 	return func(o *priorityQueueOptions) {
 		o.podInitialBackoffDuration = duration
 	}
 }
 
-// WithPodMaxBackoffDuration sets pod max backoff duration for PriorityQueue.
+// WithPodMaxBackoffDuration sets pod max backoff duration for PriorityQueue. - 设置 Pod 最大 backoff 的持续时间
 func WithPodMaxBackoffDuration(duration time.Duration) Option {
 	return func(o *priorityQueueOptions) {
 		o.podMaxBackoffDuration = duration
 	}
 }
 
-// WithPodLister sets pod lister for PriorityQueue.
+// WithPodLister sets pod lister for PriorityQueue. - 设置 Pod 列表
 func WithPodLister(pl listersv1.PodLister) Option {
 	return func(o *priorityQueueOptions) {
 		o.podLister = pl
 	}
 }
 
-// WithPodMaxInUnschedulablePodsDuration sets podMaxInUnschedulablePodsDuration for PriorityQueue.
+// WithPodMaxInUnschedulablePodsDuration sets podMaxInUnschedulablePodsDuration for PriorityQueue. - 设置 Pod 在 unschedulablePods 中可以停留的最大时间
 func WithPodMaxInUnschedulablePodsDuration(duration time.Duration) Option {
 	return func(o *priorityQueueOptions) {
 		o.podMaxInUnschedulablePodsDuration = duration
 	}
 }
 
-// QueueingHintMapPerProfile is keyed with profile name, valued with queueing hint map registered for the profile.
+// QueueingHintMapPerProfile is keyed with profile name, valued with queueing hint map registered for the profile. - 键为 profile 名称，值为注册的队列提示映射
 type QueueingHintMapPerProfile map[string]QueueingHintMap
 
-// QueueingHintMap is keyed with ClusterEvent, valued with queueing hint functions registered for the event.
+// QueueingHintMap is keyed with ClusterEvent, valued with queueing hint functions registered for the event. - 键为 ClusterEvent，值为注册的队列提示函数
 type QueueingHintMap map[framework.ClusterEvent][]*QueueingHintFunction
 
-// WithQueueingHintMapPerProfile sets queueingHintMap for PriorityQueue.
+// WithQueueingHintMapPerProfile sets queueingHintMap for PriorityQueue. - 设置队列提示映射
 func WithQueueingHintMapPerProfile(m QueueingHintMapPerProfile) Option {
 	return func(o *priorityQueueOptions) {
 		o.queueingHintMap = m
 	}
 }
 
-// WithPreEnqueuePluginMap sets preEnqueuePluginMap for PriorityQueue.
+// WithPreEnqueuePluginMap sets preEnqueuePluginMap for PriorityQueue. - 设置预处理插件映射
 func WithPreEnqueuePluginMap(m map[string][]framework.PreEnqueuePlugin) Option {
 	return func(o *priorityQueueOptions) {
 		o.preEnqueuePluginMap = m
 	}
 }
 
-// WithMetricsRecorder sets metrics recorder.
+// WithMetricsRecorder sets metrics recorder. - 设置指标记录器
 func WithMetricsRecorder(recorder metrics.MetricAsyncRecorder) Option {
 	return func(o *priorityQueueOptions) {
 		o.metricsRecorder = recorder
 	}
 }
 
-// WithPluginMetricsSamplePercent sets the percentage of plugin metrics to be sampled.
+// WithPluginMetricsSamplePercent sets the percentage of plugin metrics to be sampled. - 设置插件指标采样百分比
 func WithPluginMetricsSamplePercent(percent int) Option {
 	return func(o *priorityQueueOptions) {
 		o.pluginMetricsSamplePercent = percent
@@ -309,7 +312,8 @@ func newQueuedPodInfoForLookup(pod *v1.Pod, plugins ...string) *framework.Queued
 	}
 }
 
-// NewPriorityQueue creates a PriorityQueue object.
+// NewPriorityQueue creates a PriorityQueue object. - 创建一个 PriorityQueue 对象。
+// 10、11、12 - (3) 初始化 podQueue 实例（k8s-scheduler-chain）
 func NewPriorityQueue(
 	lessFn framework.LessFunc,
 	informerFactory informers.SharedInformerFactory,
