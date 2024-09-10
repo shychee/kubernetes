@@ -156,10 +156,12 @@ func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Op
 	}
 	// add feature enablement metrics
 	fg.(featuregate.MutableFeatureGate).AddMetrics()
+	// 17、18 - (1) 运行 scheduler（k8s-scheduler-chain）
 	return Run(ctx, cc, sched)
 }
 
-// Run executes the scheduler based on the given configuration. It only returns on error or when context is done.
+// Run executes the scheduler based on the given configuration. It only returns on error or when context is done. - 根据给定的配置执行调度程序。它仅在错误或上下文完成时返回。
+// 17、18 - (2) 运行 scheduler（k8s-scheduler-chain）
 func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *scheduler.Scheduler) error {
 	logger := klog.FromContext(ctx)
 

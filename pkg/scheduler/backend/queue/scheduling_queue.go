@@ -121,9 +121,9 @@ type SchedulingQueue interface {
 	PendingPods() ([]*v1.Pod, string)
 	PodsInActiveQ() []*v1.Pod
 	// Close closes the SchedulingQueue so that the goroutine which is
-	// waiting to pop items can exit gracefully.
+	// waiting to pop items can exit gracefully. - Close 关闭 SchedulingQueue，使等待弹出项目的 goroutine 可以优雅地退出。
 	Close()
-	// Run starts the goroutines managing the queue.
+	// Run starts the goroutines managing the queue. - Run 启动协程，管理队列。
 	Run(logger klog.Logger)
 }
 
@@ -351,7 +351,8 @@ func NewPriorityQueue(
 	return pq
 }
 
-// Run starts the goroutine to pump from podBackoffQ to activeQ
+// Run starts the goroutine to pump from podBackoffQ to activeQ - Run 启动协程，将数据从 “podBackoffQ” 泵送到 “activeQ”。
+// 19 - (2) 运行SchedulingQueue（k8s-scheduler-chain）
 func (p *PriorityQueue) Run(logger klog.Logger) {
 	go wait.Until(func() {
 		p.flushBackoffQCompleted(logger)
@@ -827,9 +828,10 @@ func (p *PriorityQueue) flushUnschedulablePodsLeftover(logger klog.Logger) {
 
 // Pop removes the head of the active queue and returns it. It blocks if the
 // activeQ is empty and waits until a new item is added to the queue. It
-// increments scheduling cycle when a pod is popped.
+// increments scheduling cycle when a pod is popped. - Pop 从 activeQ 的头部移除并返回一个项目。如果 activeQ 为空，它会阻塞，直到一个新的项目被添加到队列中。当一个项目被弹出时，它会递增调度周期。
 // Note: This method should NOT be locked by the p.lock at any moment,
-// as it would lead to scheduling throughput degradation.
+// as it would lead to scheduling throughput degradation. - 注意：此方法在任何时候都不应该被 p.lock 锁定，因为它会导致调度吞吐量下降。
+// 20、21 - (3) 从队列中拿出 Pod 进行调度（k8s-scheduler-chain）
 func (p *PriorityQueue) Pop(logger klog.Logger) (*framework.QueuedPodInfo, error) {
 	return p.activeQ.pop(logger)
 }

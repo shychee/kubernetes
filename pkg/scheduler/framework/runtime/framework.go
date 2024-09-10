@@ -692,10 +692,11 @@ func (f *frameworkImpl) QueueSortFunc() framework.LessFunc {
 
 // RunPreFilterPlugins runs the set of configured PreFilter plugins. It returns
 // *Status and its code is set to non-success if any of the plugins returns
-// anything but Success/Skip.
+// anything but Success/Skip. - 如果任何插件返回非成功/跳过，则返回的状态代码设置为非成功。
 // When it returns Skip status, returned PreFilterResult and other fields in status are just ignored,
-// and coupled Filter plugin/PreFilterExtensions() will be skipped in this scheduling cycle.
-// If a non-success status is returned, then the scheduling cycle is aborted.
+// and coupled Filter plugin/PreFilterExtensions() will be skipped in this scheduling cycle. - 当返回跳过状态时，返回的 PreFilterResult 和其他字段在状态中被忽略，并且与 Filter 插件/PreFilterExtensions() 在当前调度周期中被跳过。
+// If a non-success status is returned, then the scheduling cycle is aborted. - 如果返回非成功状态，则调度周期中止。
+// 运行预过滤插件 - (2)（k8s-scheduler-chain）
 func (f *frameworkImpl) RunPreFilterPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod) (_ *framework.PreFilterResult, status *framework.Status, _ sets.Set[string]) {
 	startTime := time.Now()
 	skipPlugins := sets.New[string]()
@@ -857,8 +858,9 @@ func (f *frameworkImpl) runPreFilterExtensionRemovePod(ctx context.Context, pl f
 
 // RunFilterPlugins runs the set of configured Filter plugins for pod on
 // the given node. If any of these plugins doesn't return "Success", the
-// given node is not suitable for running pod.
-// Meanwhile, the failure message and status are set for the given node.
+// given node is not suitable for running pod. - 如果任何这些插件不返回“Success”，则给定的节点不适合运行 Pod。
+// Meanwhile, the failure message and status are set for the given node. - 同时，失败消息和状态设置为给定的节点。
+// 运行过滤插件 - (6)（k8s-scheduler-chain）
 func (f *frameworkImpl) RunFilterPlugins(
 	ctx context.Context,
 	state *framework.CycleState,
@@ -962,37 +964,38 @@ func (f *frameworkImpl) runPostFilterPlugin(ctx context.Context, pl framework.Po
 }
 
 // RunFilterPluginsWithNominatedPods runs the set of configured filter plugins
-// for nominated pod on the given node.
-// This function is called from two different places: Schedule and Preempt.
+// for nominated pod on the given node. - 为给定节点上的提名 Pod 运行一组配置的过滤插件。
+// This function is called from two different places: Schedule and Preempt. - 该函数从两个不同的地方调用：Schedule 和 Preempt。
 // When it is called from Schedule, we want to test whether the pod is
 // schedulable on the node with all the existing pods on the node plus higher
-// and equal priority pods nominated to run on the node.
+// and equal priority pods nominated to run on the node. - 当从 Schedule 调用时，我们希望测试提名 Pod 是否可以在具有所有现有 Pod 的节点上运行，加上所有具有更高或相等优先级的提名 Pod。
 // When it is called from Preempt, we should remove the victims of preemption
 // and add the nominated pods. Removal of the victims is done by
 // SelectVictimsOnNode(). Preempt removes victims from PreFilter state and
-// NodeInfo before calling this function.
+// NodeInfo before calling this function. - 预选会从 PreFilter 状态和 NodeInfo 中删除受害者，然后在调用此函数之前调用 SelectVictimsOnNode()。
+// 运行过滤插件 - (5)（k8s-scheduler-chain）
 func (f *frameworkImpl) RunFilterPluginsWithNominatedPods(ctx context.Context, state *framework.CycleState, pod *v1.Pod, info *framework.NodeInfo) *framework.Status {
 	var status *framework.Status
 
 	podsAdded := false
 	// We run filters twice in some cases. If the node has greater or equal priority
-	// nominated pods, we run them when those pods are added to PreFilter state and nodeInfo.
+	// nominated pods, we run them when those pods are added to PreFilter state and nodeInfo. - 如果节点具有更高或相等优先级的提名 Pod，我们会在将这些 Pod 添加到 PreFilter 状态和 NodeInfo 时运行它们。
 	// If all filters succeed in this pass, we run them again when these
 	// nominated pods are not added. This second pass is necessary because some
-	// filters such as inter-pod affinity may not pass without the nominated pods.
+	// filters such as inter-pod affinity may not pass without the nominated pods. - 第二次运行是必要的，因为某些过滤器（如 Pod 间亲和性）在未添加提名 Pod 时可能无法通过。
 	// If there are no nominated pods for the node or if the first run of the
-	// filters fail, we don't run the second pass.
+	// filters fail, we don't run the second pass. - 如果没有为节点提名 Pod，或者如果第一次运行过滤器失败，我们不会运行第二次运行。
 	// We consider only equal or higher priority pods in the first pass, because
 	// those are the current "pod" must yield to them and not take a space opened
 	// for running them. It is ok if the current "pod" take resources freed for
-	// lower priority pods.
+	// lower priority pods. - 在第一次运行中，我们只考虑等于或更高优先级的提名 Pod，因为当前“Pod”必须让位于它们并不要占用为较低优先级 Pod 释放的资源。
 	// Requiring that the new pod is schedulable in both circumstances ensures that
 	// we are making a conservative decision: filters like resources and inter-pod
 	// anti-affinity are more likely to fail when the nominated pods are treated
 	// as running, while filters like pod affinity are more likely to fail when
 	// the nominated pods are treated as not running. We can't just assume the
 	// nominated pods are running because they are not running right now and in fact,
-	// they may end up getting scheduled to a different node.
+	// they may end up getting scheduled to a different node. - 我们无法假设提名 Pod 正在运行，因为它们目前没有运行，实际上它们可能会被调度到不同的节点。
 	logger := klog.FromContext(ctx)
 	logger = klog.LoggerWithName(logger, "FilterWithNominatedPods")
 	ctx = klog.NewContext(ctx, logger)
@@ -1047,9 +1050,10 @@ func addNominatedPods(ctx context.Context, fh framework.Handle, pod *v1.Pod, sta
 }
 
 // RunPreScorePlugins runs the set of configured pre-score plugins. If any
-// of these plugins returns any status other than Success/Skip, the given pod is rejected.
+// of these plugins returns any status other than Success/Skip, the given pod is rejected. - RunPreScorePlugins 运行一组已配置的预评分插件。如果这些插件中的任何一个返回除 “成功”/“跳过” 之外的任何状态，则给定的容器将被拒绝。
 // When it returns Skip status, other fields in status are just ignored,
-// and coupled Score plugin will be skipped in this scheduling cycle.
+// and coupled Score plugin will be skipped in this scheduling cycle. - 当它返回 “跳过” 状态时，状态中的其他字段被忽略，
+// 运行预评分插件 - (4)（k8s-scheduler-chain）
 func (f *frameworkImpl) RunPreScorePlugins(
 	ctx context.Context,
 	state *framework.CycleState,
@@ -1095,10 +1099,11 @@ func (f *frameworkImpl) runPreScorePlugin(ctx context.Context, pl framework.PreS
 	return status
 }
 
-// RunScorePlugins runs the set of configured scoring plugins.
-// It returns a list that stores scores from each plugin and total score for each Node.
+// RunScorePlugins runs the set of configured scoring plugins. - RunScorePlgins 运行一组已经评分的插件
+// It returns a list that stores scores from each plugin and total score for each Node. - 它返回一个列表，其中包含每个插件的分数和每个节点的总分数。
 // It also returns *Status, which is set to non-success if any of the plugins returns
-// a non-success status.
+// a non-success status. - 如果任何插件返回非成功状态，则返回 *Status。
+// 运行评分插件 - (2)（k8s-scheduler-chain）
 func (f *frameworkImpl) RunScorePlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodes []*framework.NodeInfo) (ns []framework.NodePluginScores, status *framework.Status) {
 	startTime := time.Now()
 	defer func() {

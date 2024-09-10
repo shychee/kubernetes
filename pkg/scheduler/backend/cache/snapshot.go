@@ -170,7 +170,8 @@ func (s *Snapshot) NumNodes() int {
 	return len(s.nodeInfoList)
 }
 
-// List returns the list of nodes in the snapshot. - 返回快照中的节点列表。
+// List returns the list of nodes in the snapshot. -
+// 更新调度器缓存快照 - (4)（k8s-scheduler-chain）
 func (s *Snapshot) List() ([]*framework.NodeInfo, error) {
 	return s.nodeInfoList, nil
 }

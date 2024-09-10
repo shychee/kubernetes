@@ -364,6 +364,7 @@ func New(ctx context.Context,
 		fwk.SetPodNominator(podQueue)
 	}
 
+	// 13、14、15 - (1) 初始化 schedulerCache 实例（k8s-scheduler-chain）
 	schedulerCache := internalcache.New(ctx, durationToExpireAssumedPod)
 
 	// Setup cache debugger.
@@ -467,23 +468,26 @@ func buildQueueingHintMap(ctx context.Context, es []framework.EnqueueExtensions)
 	return queueingHintMap, nil
 }
 
-// Run begins watching and scheduling. It starts scheduling and blocked until the context is done.
+// Run begins watching and scheduling. It starts scheduling and blocked until the context is done. - Run 开始监视和调度。它开始调度并阻塞，直到上下文完成。
+// 17、18 - (3) 运行 scheduler（k8s-scheduler-chain）
 func (sched *Scheduler) Run(ctx context.Context) {
 	logger := klog.FromContext(ctx)
+	// 19 - (1) 运行 SchedulingQueue（k8s-scheduler-chain）
 	sched.SchedulingQueue.Run(logger)
 
 	// We need to start scheduleOne loop in a dedicated goroutine,
 	// because scheduleOne function hangs on getting the next item
-	// from the SchedulingQueue.
+	// from the SchedulingQueue. - 我们需要在一个专用的协程中启动 scheduleOne 循环，因为 scheduleOne 函数在从 SchedulingQueue 中获取下一个项目时会挂起。
 	// If there are no new pods to schedule, it will be hanging there
 	// and if done in this goroutine it will be blocking closing
-	// SchedulingQueue, in effect causing a deadlock on shutdown.
+	// SchedulingQueue, in effect causing a deadlock on shutdown. - 如果没有新的 Pod 可供调度，它将一直挂起。并且如果在这个协程中执行，它将阻塞关闭调度队列，实际上会在关闭时导致死锁。
+	// 20、21 - (1) 从队列中拿出 Pod 进行调度（k8s-scheduler-chain）
 	go wait.UntilWithContext(ctx, sched.ScheduleOne, 0)
 
 	<-ctx.Done()
 	sched.SchedulingQueue.Close()
 
-	// If the plugins satisfy the io.Closer interface, they are closed.
+	// If the plugins satisfy the io.Closer interface, they are closed. - 如果插件满足 io.Closer 接口，它们就会被关闭。
 	err := sched.Profiles.Close()
 	if err != nil {
 		logger.Error(err, "Failed to close plugins")

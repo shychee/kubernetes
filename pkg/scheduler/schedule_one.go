@@ -61,7 +61,8 @@ const (
 	numberOfHighestScoredNodesToReport = 3
 )
 
-// ScheduleOne does the entire scheduling workflow for a single pod. It is serialized on the scheduling algorithm's host fitting.
+// ScheduleOne does the entire scheduling workflow for a single pod. It is serialized on the scheduling algorithm's host fitting. - ScheduleOne 为单个容器执行整个调度工作流。它在调度算法的主机适配中被序列化。
+// 20、21 - (2) 从队列中拿出 Pod 进行调度（k8s-scheduler-chain）
 func (sched *Scheduler) ScheduleOne(ctx context.Context) {
 	logger := klog.FromContext(ctx)
 	podInfo, err := sched.NextPod(logger)
@@ -69,7 +70,7 @@ func (sched *Scheduler) ScheduleOne(ctx context.Context) {
 		logger.Error(err, "Error while retrieving next pod from scheduling queue")
 		return
 	}
-	// pod could be nil when schedulerQueue is closed
+	// pod could be nil when schedulerQueue is closed - 当调度队列关闭时，pod 可能为 nil。
 	if podInfo == nil || podInfo.Pod == nil {
 		return
 	}
@@ -82,6 +83,7 @@ func (sched *Scheduler) ScheduleOne(ctx context.Context) {
 	ctx = klog.NewContext(ctx, logger)
 	logger.V(4).Info("About to try and schedule pod", "pod", klog.KObj(pod))
 
+	// 获取 fwk（k8s-scheduler-chain）
 	fwk, err := sched.frameworkForPod(pod)
 	if err != nil {
 		// This shouldn't happen, because we only accept for scheduling the pods
@@ -107,6 +109,7 @@ func (sched *Scheduler) ScheduleOne(ctx context.Context) {
 	schedulingCycleCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// 22、23、24、25、26、27、28、29、30、31、32、33、34、35 - (1) 进入调度周期（k8s-scheduler-chain）
 	scheduleResult, assumedPodInfo, status := sched.schedulingCycle(schedulingCycleCtx, state, fwk, podInfo, start, podsToActivate)
 	if !status.IsSuccess() {
 		sched.FailureHandler(schedulingCycleCtx, fwk, assumedPodInfo, status, scheduleResult.nominatingInfo, start)
@@ -134,7 +137,8 @@ func (sched *Scheduler) ScheduleOne(ctx context.Context) {
 
 var clearNominatedNode = &framework.NominatingInfo{NominatingMode: framework.ModeOverride, NominatedNodeName: ""}
 
-// schedulingCycle tries to schedule a single Pod.
+// schedulingCycle tries to schedule a single Pod. - schedulingCycle 尝试调度一个单个的容器组（pod）。
+// 22、23、24、25、26、27、28、29、30、31、32、33、34、35 - (2) 调度 Pod（k8s-scheduler-chain）
 func (sched *Scheduler) schedulingCycle(
 	ctx context.Context,
 	state *framework.CycleState,
@@ -145,6 +149,7 @@ func (sched *Scheduler) schedulingCycle(
 ) (ScheduleResult, *framework.QueuedPodInfo, *framework.Status) {
 	logger := klog.FromContext(ctx)
 	pod := podInfo.Pod
+	// 22、23、24、25、26、27、28、29、30、31、32、33、34、35 - (3) 调度 Pod（k8s-scheduler-chain）
 	scheduleResult, err := sched.SchedulePod(ctx, fwk, state, pod)
 	if err != nil {
 		defer func() {
@@ -369,6 +374,7 @@ func (sched *Scheduler) handleBindingCycleError(
 	sched.FailureHandler(ctx, fwk, podInfo, status, clearNominatedNode, start)
 }
 
+// 获取 fwk（k8s-scheduler-chain）
 func (sched *Scheduler) frameworkForPod(pod *v1.Pod) (framework.Framework, error) {
 	fwk, ok := sched.Profiles[pod.Spec.SchedulerName]
 	if !ok {
@@ -377,18 +383,18 @@ func (sched *Scheduler) frameworkForPod(pod *v1.Pod) (framework.Framework, error
 	return fwk, nil
 }
 
-// skipPodSchedule returns true if we could skip scheduling the pod for specified cases.
+// skipPodSchedule returns true if we could skip scheduling the pod for specified cases. - 如果在特定情况下我们可以跳过对容器组（pod）的调度，则 skipPodSchedule 返回 true。
 func (sched *Scheduler) skipPodSchedule(ctx context.Context, fwk framework.Framework, pod *v1.Pod) bool {
-	// Case 1: pod is being deleted.
+	// Case 1: pod is being deleted. - Case 1: 容器组（pod）正在被删除。
 	if pod.DeletionTimestamp != nil {
 		fwk.EventRecorder().Eventf(pod, nil, v1.EventTypeWarning, "FailedScheduling", "Scheduling", "skip schedule deleting pod: %v/%v", pod.Namespace, pod.Name)
 		klog.FromContext(ctx).V(3).Info("Skip schedule deleting pod", "pod", klog.KObj(pod))
 		return true
 	}
 
-	// Case 2: pod that has been assumed could be skipped.
+	// Case 2: pod that has been assumed could be skipped. - Case 2: 已经假设的容器组（pod）可以跳过。
 	// An assumed pod can be added again to the scheduling queue if it got an update event
-	// during its previous scheduling cycle but before getting assumed.
+	// during its previous scheduling cycle but before getting assumed. - 如果它在之前的调度周期中获得了更新事件，但在被假设之前，它可以再次添加到调度队列中。
 	isAssumed, err := sched.Cache.IsAssumedPod(pod)
 	if err != nil {
 		// TODO(91633): pass ctx into a revised HandleError
@@ -398,12 +404,14 @@ func (sched *Scheduler) skipPodSchedule(ctx context.Context, fwk framework.Frame
 	return isAssumed
 }
 
-// schedulePod tries to schedule the given pod to one of the nodes in the node list.
-// If it succeeds, it will return the name of the node.
-// If it fails, it will return a FitError with reasons.
+// schedulePod tries to schedule the given pod to one of the nodes in the node list. - 尝试将给定的 Pod 调度到节点列表中的一个节点。
+// If it succeeds, it will return the name of the node. - 如果成功，它将返回节点的名称。
+// If it fails, it will return a FitError with reasons. - 如果失败，它将返回一个包含原因的 FitError。
+// 22、23、24、25、26、27、28、29、30、31、32、33、34、35 - (4) 进入调度周期（k8s-scheduler-chain）
 func (sched *Scheduler) schedulePod(ctx context.Context, fwk framework.Framework, state *framework.CycleState, pod *v1.Pod) (result ScheduleResult, err error) {
 	trace := utiltrace.New("Scheduling", utiltrace.Field{Key: "namespace", Value: pod.Namespace}, utiltrace.Field{Key: "name", Value: pod.Name})
 	defer trace.LogIfLong(100 * time.Millisecond)
+	// 更新调度器缓存快照 - (1)（k8s-scheduler-chain）
 	if err := sched.Cache.UpdateSnapshot(klog.FromContext(ctx), sched.nodeInfoSnapshot); err != nil {
 		return result, err
 	}
@@ -413,6 +421,7 @@ func (sched *Scheduler) schedulePod(ctx context.Context, fwk framework.Framework
 		return result, ErrNoNodesAvailable
 	}
 
+	// 更新调度器缓存快照: 找到适合的节点 - (3)（k8s-scheduler-chain）
 	feasibleNodes, diagnosis, err := sched.findNodesThatFitPod(ctx, fwk, state, pod)
 	if err != nil {
 		return result, err
@@ -436,6 +445,7 @@ func (sched *Scheduler) schedulePod(ctx context.Context, fwk framework.Framework
 		}, nil
 	}
 
+	// 运行预评分插件 - (1)（k8s-scheduler-chain）
 	priorityList, err := prioritizeNodes(ctx, sched.Extenders, fwk, state, pod, feasibleNodes)
 	if err != nil {
 		return result, err
@@ -463,7 +473,8 @@ func (sched *Scheduler) findNodesThatFitPod(ctx context.Context, fwk framework.F
 	if err != nil {
 		return nil, diagnosis, err
 	}
-	// Run "prefilter" plugins.
+	// Run "prefilter" plugins. - 运行 "prefilter" 插件。
+	// 运行预过滤插件 - (1)（k8s-scheduler-chain）
 	preRes, s, unscheduledPlugins := fwk.RunPreFilterPlugins(ctx, state, pod)
 	diagnosis.UnschedulablePlugins = unscheduledPlugins
 	if !s.IsSuccess() {
@@ -506,9 +517,10 @@ func (sched *Scheduler) findNodesThatFitPod(ctx context.Context, fwk framework.F
 		}
 		diagnosis.NodeToStatus.SetAbsentNodesStatus(framework.NewStatus(framework.UnschedulableAndUnresolvable, fmt.Sprintf("node(s) didn't satisfy plugin(s) %v", sets.List(unscheduledPlugins))))
 	}
+	// 运行过滤插件 - (1)（k8s-scheduler-chain）
 	feasibleNodes, err := sched.findNodesThatPassFilters(ctx, fwk, state, pod, &diagnosis, nodes)
 	// always try to update the sched.nextStartNodeIndex regardless of whether an error has occurred
-	// this is helpful to make sure that all the nodes have a chance to be searched
+	// this is helpful to make sure that all the nodes have a chance to be searched - 无论如何，总是尝试更新 sched.nextStartNodeIndex，无论是否发生错误，这有助于确保所有节点都有机会被搜索。
 	processedNodes := len(feasibleNodes) + diagnosis.NodeToStatus.Len()
 	sched.nextStartNodeIndex = (sched.nextStartNodeIndex + processedNodes) % len(allNodes)
 	if err != nil {
@@ -580,7 +592,8 @@ func (sched *Scheduler) hasExtenderFilters() bool {
 	return false
 }
 
-// findNodesThatPassFilters finds the nodes that fit the filter plugins.
+// findNodesThatPassFilters finds the nodes that fit the filter plugins. - 找到适合插件的节点
+// 运行过滤插件 - (2)（k8s-scheduler-chain）
 func (sched *Scheduler) findNodesThatPassFilters(
 	ctx context.Context,
 	fwk framework.Framework,
@@ -615,9 +628,10 @@ func (sched *Scheduler) findNodesThatPassFilters(
 		status *framework.Status
 	}
 	result := make([]*nodeStatus, numAllNodes)
+	// 运行过滤插件: 检查节点 - (2)（k8s-scheduler-chain）
 	checkNode := func(i int) {
 		// We check the nodes starting from where we left off in the previous scheduling cycle,
-		// this is to make sure all nodes have the same chance of being examined across pods.
+		// this is to make sure all nodes have the same chance of being examined across pods. - 从上一次调度周期的位置开始检查节点，以确保所有节点在不同 Pod 之间具有相同的检查机会。
 		nodeInfo := nodes[(sched.nextStartNodeIndex+i)%numAllNodes]
 		status := fwk.RunFilterPluginsWithNominatedPods(ctx, state, pod, nodeInfo)
 		if status.Code() == framework.Error {
@@ -647,7 +661,8 @@ func (sched *Scheduler) findNodesThatPassFilters(
 	}()
 
 	// Stops searching for more nodes once the configured number of feasible nodes
-	// are found.
+	// are found. - 一旦找到配置的节点数量，停止搜索更多节点。
+	// 运行过滤插件: 检查节点 - (3)（k8s-scheduler-chain）
 	fwk.Parallelizer().Until(ctx, numAllNodes, checkNode, metrics.Filter)
 	feasibleNodes = feasibleNodes[:feasibleNodesLen]
 	for _, item := range result {
@@ -741,10 +756,11 @@ func findNodesThatPassExtenders(ctx context.Context, extenders []framework.Exten
 }
 
 // prioritizeNodes prioritizes the nodes by running the score plugins,
-// which return a score for each node from the call to RunScorePlugins().
+// which return a score for each node from the call to RunScorePlugins(). - 通过运行评分插件来优先考虑节点，评分插件为每个节点返回一个分数，从调用 RunScorePlugins() 的调用中。
 // The scores from each plugin are added together to make the score for that node, then
-// any extenders are run as well.
-// All scores are finally combined (added) to get the total weighted scores of all nodes
+// any extenders are run as well. - 每个插件的得分相加得到该节点的得分，然后任何扩展器也会运行。
+// All scores are finally combined (added) to get the total weighted scores of all nodes - 所有得分相加得到所有节点的总加权分数
+// 运行预评分插件 - (2)（k8s-scheduler-chain）
 func prioritizeNodes(
 	ctx context.Context,
 	extenders []framework.Extender,
@@ -767,13 +783,13 @@ func prioritizeNodes(
 		return result, nil
 	}
 
-	// Run PreScore plugins.
+	// Run PreScore plugins. - 运行预评分插件 - (3)（k8s-scheduler-chain）
 	preScoreStatus := fwk.RunPreScorePlugins(ctx, state, pod, nodes)
 	if !preScoreStatus.IsSuccess() {
 		return nil, preScoreStatus.AsError()
 	}
 
-	// Run the Score plugins.
+	// Run the Score plugins. - 运行评分插件 - (1)（k8s-scheduler-chain）
 	nodesScores, scoreStatus := fwk.RunScorePlugins(ctx, state, pod, nodes)
 	if !scoreStatus.IsSuccess() {
 		return nil, scoreStatus.AsError()
@@ -790,8 +806,8 @@ func prioritizeNodes(
 	}
 
 	if len(extenders) != 0 && nodes != nil {
-		// allNodeExtendersScores has all extenders scores for all nodes.
-		// It is keyed with node name.
+		// allNodeExtendersScores has all extenders scores for all nodes. - 所有扩展程序的分数
+		// It is keyed with node name. - 它以节点名称作为键。
 		allNodeExtendersScores := make(map[string]*framework.NodePluginScores, len(nodes))
 		var mu sync.Mutex
 		var wg sync.WaitGroup

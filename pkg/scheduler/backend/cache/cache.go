@@ -34,10 +34,11 @@ var (
 	cleanAssumedPeriod = 1 * time.Second
 )
 
-// New returns a Cache implementation.
-// It automatically starts a go routine that manages expiration of assumed pods.
-// "ttl" is how long the assumed pod will get expired.
-// "ctx" is the context that would close the background goroutine.
+// New returns a Cache implementation. - 返回一个 Cache 实现
+// It automatically starts a go routine that manages expiration of assumed pods. - 它自动启动一个 goroutine，管理假设的 pod 的过期时间
+// "ttl" is how long the assumed pod will get expired. - ttl 是假设的 pod 将过期的时间
+// "ctx" is the context that would close the background goroutine. - ctx 是关闭后台 goroutine 的上下文
+// 13、14、15 - (2) 初始化 schedulerCache 实例（k8s-scheduler-chain）
 func New(ctx context.Context, ttl time.Duration) Cache {
 	logger := klog.FromContext(ctx)
 	cache := newCache(ctx, ttl, cleanAssumedPeriod)
@@ -48,30 +49,32 @@ func New(ctx context.Context, ttl time.Duration) Cache {
 // nodeInfoListItem holds a NodeInfo pointer and acts as an item in a doubly
 // linked list. When a NodeInfo is updated, it goes to the head of the list.
 // The items closer to the head are the most recently updated items.
+// nodeInfoListItem 持有 NodeInfo 指针，并作为一个双向链表中的项目。当更新 NodeInfo 时，它移动到链表的头部。更靠近头部的项目是最新的项目。
 type nodeInfoListItem struct {
 	info *framework.NodeInfo
 	next *nodeInfoListItem
 	prev *nodeInfoListItem
 }
 
+// 13、14、15 - (4) 初始化 schedulerCache 实例（k8s-scheduler-chain）
 type cacheImpl struct {
 	stop   <-chan struct{}
 	ttl    time.Duration
 	period time.Duration
 
-	// This mutex guards all fields within this cache struct.
+	// This mutex guards all fields within this cache struct. - 这个互斥锁保护这个缓存结构体中的所有字段
 	mu sync.RWMutex
-	// a set of assumed pod keys.
-	// The key could further be used to get an entry in podStates.
+	// a set of assumed pod keys. - 一个假设的 pod 键集合
+	// The key could further be used to get an entry in podStates. - 键可以进一步用于在 podStates 中获取条目
 	assumedPods sets.Set[string]
-	// a map from pod key to podState.
+	// a map from pod key to podState. - 一个从 pod 键到 podState 的映射
 	podStates map[string]*podState
 	nodes     map[string]*nodeInfoListItem
 	// headNode points to the most recently updated NodeInfo in "nodes". It is the
-	// head of the linked list.
+	// head of the linked list. - headNode 指向“nodes”中最新的更新节点信息。它是链表的头节点
 	headNode *nodeInfoListItem
 	nodeTree *nodeTree
-	// A map from image name to its ImageStateSummary.
+	// A map from image name to its ImageStateSummary. - 一个从镜像名称到其 ImageStateSummary 的映射
 	imageStates map[string]*framework.ImageStateSummary
 }
 
@@ -84,6 +87,7 @@ type podState struct {
 	bindingFinished bool
 }
 
+// 13、14、15 - (3) 初始化 schedulerCache 实例（k8s-scheduler-chain）
 func newCache(ctx context.Context, ttl, period time.Duration) *cacheImpl {
 	logger := klog.FromContext(ctx)
 	return &cacheImpl{
@@ -177,38 +181,39 @@ func (cache *cacheImpl) Dump() *Dump {
 }
 
 // UpdateSnapshot takes a snapshot of cached NodeInfo map. This is called at
-// beginning of every scheduling cycle.
-// The snapshot only includes Nodes that are not deleted at the time this function is called.
-// nodeInfo.Node() is guaranteed to be not nil for all the nodes in the snapshot.
+// beginning of every scheduling cycle. - 在每个调度周期开始时调用
+// The snapshot only includes Nodes that are not deleted at the time this function is called. - 快照仅包括在此函数调用时未删除的节点
+// nodeInfo.Node() is guaranteed to be not nil for all the nodes in the snapshot. - nodeInfo.Node() 保证在快照中的所有节点都不是 nil
 // This function tracks generation number of NodeInfo and updates only the
-// entries of an existing snapshot that have changed after the snapshot was taken.
+// entries of an existing snapshot that have changed after the snapshot was taken. - 此函数跟踪 NodeInfo 的生成编号，仅更新在快照之后更改的条目
+// 更新调度器缓存快照 - (2)（k8s-scheduler-chain）
 func (cache *cacheImpl) UpdateSnapshot(logger klog.Logger, nodeSnapshot *Snapshot) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	// Get the last generation of the snapshot.
+	// Get the last generation of the snapshot. - 获取快照的最后一个生成编号
 	snapshotGeneration := nodeSnapshot.generation
 
 	// NodeInfoList and HavePodsWithAffinityNodeInfoList must be re-created if a node was added
-	// or removed from the cache.
+	// or removed from the cache. - 如果从缓存中添加或删除了节点，则必须重新创建 NodeInfoList 和 HavePodsWithAffinityNodeInfoList
 	updateAllLists := false
 	// HavePodsWithAffinityNodeInfoList must be re-created if a node changed its
 	// status from having pods with affinity to NOT having pods with affinity or the other
-	// way around.
+	// way around. - 如果节点从具有亲和力的 pod 更改为没有亲和力的 pod，或者反之亦然，则必须重新创建 HavePodsWithAffinityNodeInfoList
 	updateNodesHavePodsWithAffinity := false
 	// HavePodsWithRequiredAntiAffinityNodeInfoList must be re-created if a node changed its
 	// status from having pods with required anti-affinity to NOT having pods with required
-	// anti-affinity or the other way around.
+	// anti-affinity or the other way around. - 如果节点从具有反亲和力的 pod 更改为没有反亲和力的 pod，或者反之亦然，则必须重新创建 HavePodsWithRequiredAntiAffinityNodeInfoList
 	updateNodesHavePodsWithRequiredAntiAffinity := false
 	// usedPVCSet must be re-created whenever the head node generation is greater than
-	// last snapshot generation.
+	// last snapshot generation. - 当头节点生成编号大于快照生成编号时，usedPVCSet 必须重新创建
 	updateUsedPVCSet := false
 
 	// Start from the head of the NodeInfo doubly linked list and update snapshot
-	// of NodeInfos updated after the last snapshot.
+	// of NodeInfos updated after the last snapshot. - 从 NodeInfo 双向链表的头部开始，更新快照中在快照之后更新的 NodeInfos
 	for node := cache.headNode; node != nil; node = node.next {
 		if node.info.Generation <= snapshotGeneration {
-			// all the nodes are updated before the existing snapshot. We are done.
+			// all the nodes are updated before the existing snapshot. We are done. - 所有节点在快照之前都已更新。我们完成了。
 			break
 		}
 		if np := node.info.Node(); np != nil {
@@ -221,7 +226,7 @@ func (cache *cacheImpl) UpdateSnapshot(logger klog.Logger, nodeSnapshot *Snapsho
 			clone := node.info.Snapshot()
 			// We track nodes that have pods with affinity, here we check if this node changed its
 			// status from having pods with affinity to NOT having pods with affinity or the other
-			// way around.
+			// way around. - 如果节点从具有亲和力的 pod 更改为没有亲和力的 pod，或者反之亦然，则必须重新创建 HavePodsWithAffinityNodeInfoList
 			if (len(existing.PodsWithAffinity) > 0) != (len(clone.PodsWithAffinity) > 0) {
 				updateNodesHavePodsWithAffinity = true
 			}
@@ -241,18 +246,18 @@ func (cache *cacheImpl) UpdateSnapshot(logger klog.Logger, nodeSnapshot *Snapsho
 				}
 			}
 			// We need to preserve the original pointer of the NodeInfo struct since it
-			// is used in the NodeInfoList, which we may not update.
+			// is used in the NodeInfoList, which we may not update. - 我们需要保留 NodeInfo 结构体的原始指针，因为它用于 NodeInfoList，我们可能不会更新它
 			*existing = *clone
 		}
 	}
-	// Update the snapshot generation with the latest NodeInfo generation.
+	// Update the snapshot generation with the latest NodeInfo generation. - 使用最新的 NodeInfo 生成编号更新快照生成编号
 	if cache.headNode != nil {
 		nodeSnapshot.generation = cache.headNode.info.Generation
 	}
 
-	// Comparing to pods in nodeTree.
+	// Comparing to pods in nodeTree. - 与 nodeTree 中的 pod 进行比较
 	// Deleted nodes get removed from the tree, but they might remain in the nodes map
-	// if they still have non-deleted Pods.
+	// if they still have non-deleted Pods. - 如果它们仍然有非删除的 pod，则它们可能仍然存在于 nodes map 中
 	if len(nodeSnapshot.nodeInfoMap) > cache.nodeTree.numNodes {
 		cache.removeDeletedNodesFromSnapshot(nodeSnapshot)
 		updateAllLists = true
@@ -270,7 +275,7 @@ func (cache *cacheImpl) UpdateSnapshot(logger klog.Logger, nodeSnapshot *Snapsho
 			len(nodeSnapshot.nodeInfoMap), len(cache.nodes))
 		logger.Error(nil, errMsg)
 		// We will try to recover by re-creating the lists for the next scheduling cycle, but still return an
-		// error to surface the problem, the error will likely cause a failure to the current scheduling cycle.
+		// error to surface the problem, the error will likely cause a failure to the current scheduling cycle. - 我们尝试通过为下一个调度周期重新创建列表来恢复，但仍返回错误以显示问题，错误可能会导致当前调度周期失败
 		cache.updateNodeInfoSnapshotList(logger, nodeSnapshot, true)
 		return fmt.Errorf(errMsg)
 	}
