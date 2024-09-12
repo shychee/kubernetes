@@ -271,7 +271,7 @@ func (sched *Scheduler) schedulingCycle(
 }
 
 // bindingCycle tries to bind an assumed Pod. - 尝试绑定一个假设的 Pod。
-// 36、37、38、39、40、41 - (3) 绑定 Pod（k8s-scheduler-chain）
+// 36、37、38、39、40、41 - (2) 绑定 Pod（k8s-scheduler-chain）
 func (sched *Scheduler) bindingCycle(
 	ctx context.Context,
 	state *framework.CycleState,
@@ -633,7 +633,7 @@ func (sched *Scheduler) findNodesThatPassFilters(
 		status *framework.Status
 	}
 	result := make([]*nodeStatus, numAllNodes)
-	// 运行过滤插件: 检查节点 - (2)（k8s-scheduler-chain）
+	// 运行过滤插件: 检查节点 - (3)（k8s-scheduler-chain）
 	checkNode := func(i int) {
 		// We check the nodes starting from where we left off in the previous scheduling cycle,
 		// this is to make sure all nodes have the same chance of being examined across pods. - 从上一次调度周期的位置开始检查节点，以确保所有节点在不同 Pod 之间具有相同的检查机会。
@@ -667,7 +667,7 @@ func (sched *Scheduler) findNodesThatPassFilters(
 
 	// Stops searching for more nodes once the configured number of feasible nodes
 	// are found. - 一旦找到配置的节点数量，停止搜索更多节点。
-	// 运行过滤插件: 检查节点 - (3)（k8s-scheduler-chain）
+	// 运行过滤插件: 检查节点 - (4)（k8s-scheduler-chain）
 	fwk.Parallelizer().Until(ctx, numAllNodes, checkNode, metrics.Filter)
 	feasibleNodes = feasibleNodes[:feasibleNodesLen]
 	for _, item := range result {
