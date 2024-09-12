@@ -47,7 +47,7 @@ func newProfile(ctx context.Context, cfg config.KubeSchedulerProfile, r framewor
 type Map map[string]framework.Framework
 
 // NewMap builds the frameworks given by the configuration, indexed by name. - 根据配置构建框架，按名称索引。
-// 6、7、8、9 - (1)初始化 profiles、fwk 实例（k8s-scheduler-chain）
+// 6、7、8、9 - (2)初始化 profiles、fwk 实例（k8s-scheduler-chain）
 func NewMap(ctx context.Context, cfgs []config.KubeSchedulerProfile, r frameworkruntime.Registry, recorderFact RecorderFactory,
 	opts ...frameworkruntime.Option) (Map, error) {
 	m := make(Map)

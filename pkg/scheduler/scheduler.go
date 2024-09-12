@@ -309,7 +309,7 @@ func New(ctx context.Context,
 		resourceClaimCache = assumecache.NewAssumeCache(logger, resourceClaimInformer, "ResourceClaim", "", nil)
 	}
 
-	// 6、7、8、9 - (2)初始化 profiles、fwk 实例（k8s-scheduler-chain）
+	// 6、7、8、9 - (1)初始化 profiles、fwk 实例（k8s-scheduler-chain）
 	profiles, err := profile.NewMap(ctx, options.profiles, registry, recorderFactory,
 		frameworkruntime.WithComponentConfigVersion(options.componentConfigVersion),
 		frameworkruntime.WithClientSet(client),
