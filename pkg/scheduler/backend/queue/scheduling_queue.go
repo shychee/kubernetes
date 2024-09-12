@@ -107,7 +107,7 @@ type SchedulingQueue interface {
 	// queue is empty and waits until a new item is added to the queue.
 	Pop(logger klog.Logger) (*framework.QueuedPodInfo, error)
 	// Done must be called for pod returned by Pop. This allows the queue to
-	// keep track of which pods are currently being processed.
+	// keep track of which pods are currently being processed. - Done 必须为 Pop 返回的 Pod 调用。这允许队列跟踪当前正在处理的 Pod。
 	Done(types.UID)
 	Update(logger klog.Logger, oldPod, newPod *v1.Pod)
 	Delete(pod *v1.Pod)
@@ -837,7 +837,8 @@ func (p *PriorityQueue) Pop(logger klog.Logger) (*framework.QueuedPodInfo, error
 }
 
 // Done must be called for pod returned by Pop. This allows the queue to
-// keep track of which pods are currently being processed.
+// keep track of which pods are currently being processed. - Done 必须为 Pop 返回的 Pod 调用。这允许队列跟踪哪些 Pod 当前正在处理。
+// 标记 Pod 调度已完成, 不要回队列 - (2)（k8s-scheduler-chain）
 func (p *PriorityQueue) Done(pod types.UID) {
 	if !p.isSchedulingQueueHintEnabled {
 		// do nothing if schedulingQueueHint is disabled.

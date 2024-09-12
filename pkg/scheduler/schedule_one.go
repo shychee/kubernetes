@@ -124,13 +124,15 @@ func (sched *Scheduler) ScheduleOne(ctx context.Context) {
 		metrics.Goroutines.WithLabelValues(metrics.Binding).Inc()
 		defer metrics.Goroutines.WithLabelValues(metrics.Binding).Dec()
 
+		// 36、37、38、39、40、41 - (1) 进入绑定周期（k8s-scheduler-chain）
 		status := sched.bindingCycle(bindingCycleCtx, state, fwk, scheduleResult, assumedPodInfo, start, podsToActivate)
 		if !status.IsSuccess() {
 			sched.handleBindingCycleError(bindingCycleCtx, state, fwk, assumedPodInfo, start, scheduleResult, status)
 			return
 		}
 		// Usually, DonePod is called inside the scheduling queue,
-		// but in this case, we need to call it here because this Pod won't go back to the scheduling queue.
+		// but in this case, we need to call it here because this Pod won't go back to the scheduling queue. - 通常，DonePod 在调度队列内部被调用，但在这种情况下，我们需要在这里调用它，因为这个 Pod 不会回到调度队列。
+		// 标记 Pod 调度已完成, 不要回队列 - (1)（k8s-scheduler-chain）
 		sched.SchedulingQueue.Done(assumedPodInfo.Pod.UID)
 	}()
 }
@@ -210,6 +212,7 @@ func (sched *Scheduler) schedulingCycle(
 	}
 
 	// Run the Reserve method of reserve plugins.
+	// 运行 ReservePluginsReserve 方法 - (1)（k8s-scheduler-chain）
 	if sts := fwk.RunReservePluginsReserve(ctx, state, assumedPod, scheduleResult.SuggestedHost); !sts.IsSuccess() {
 		// trigger un-reserve to clean up state associated with the reserved Pod
 		fwk.RunReservePluginsUnreserve(ctx, state, assumedPod, scheduleResult.SuggestedHost)
@@ -232,7 +235,7 @@ func (sched *Scheduler) schedulingCycle(
 		return ScheduleResult{nominatingInfo: clearNominatedNode}, assumedPodInfo, sts
 	}
 
-	// Run "permit" plugins.
+	// Run "permit" plugins. - 运行 PermitPlugins 方法 - (1)（k8s-scheduler-chain）
 	runPermitStatus := fwk.RunPermitPlugins(ctx, state, assumedPod, scheduleResult.SuggestedHost)
 	if !runPermitStatus.IsWait() && !runPermitStatus.IsSuccess() {
 		// trigger un-reserve to clean up state associated with the reserved Pod
@@ -267,7 +270,8 @@ func (sched *Scheduler) schedulingCycle(
 	return scheduleResult, assumedPodInfo, nil
 }
 
-// bindingCycle tries to bind an assumed Pod.
+// bindingCycle tries to bind an assumed Pod. - 尝试绑定一个假设的 Pod。
+// 36、37、38、39、40、41 - (3) 绑定 Pod（k8s-scheduler-chain）
 func (sched *Scheduler) bindingCycle(
 	ctx context.Context,
 	state *framework.CycleState,
@@ -280,7 +284,7 @@ func (sched *Scheduler) bindingCycle(
 
 	assumedPod := assumedPodInfo.Pod
 
-	// Run "permit" plugins.
+	// Run "permit" plugins. - 运行 "permit" 插件。
 	if status := fwk.WaitOnPermit(ctx, assumedPod); !status.IsSuccess() {
 		if status.IsRejected() {
 			fitErr := &framework.FitError{
@@ -297,7 +301,7 @@ func (sched *Scheduler) bindingCycle(
 		return status
 	}
 
-	// Run "prebind" plugins.
+	// Run "prebind" plugins. - 运行 "prebind" 插件。
 	if status := fwk.RunPreBindPlugins(ctx, state, assumedPod, scheduleResult.SuggestedHost); !status.IsSuccess() {
 		if status.IsRejected() {
 			fitErr := &framework.FitError{
@@ -314,12 +318,13 @@ func (sched *Scheduler) bindingCycle(
 		return status
 	}
 
-	// Run "bind" plugins.
+	// Run "bind" plugins. - 运行 "bind" 插件。
+	// 运行 BindPlugins 方法 - (1)（k8s-scheduler-chain）
 	if status := sched.bind(ctx, fwk, assumedPod, scheduleResult.SuggestedHost, state); !status.IsSuccess() {
 		return status
 	}
 
-	// Calculating nodeResourceString can be heavy. Avoid it if klog verbosity is below 2.
+	// Calculating nodeResourceString can be heavy. Avoid it if klog verbosity is below 2. - 计算 nodeResourceString 可能很重。如果 klog 的详细程度低于 2，则避免它。
 	logger.V(2).Info("Successfully bound pod to node", "pod", klog.KObj(assumedPod), "node", scheduleResult.SuggestedHost, "evaluatedNodes", scheduleResult.EvaluatedNodes, "feasibleNodes", scheduleResult.FeasibleNodes)
 	metrics.PodScheduled(fwk.ProfileName(), metrics.SinceInSeconds(start))
 	metrics.PodSchedulingAttempts.Observe(float64(assumedPodInfo.Attempts))
@@ -327,14 +332,14 @@ func (sched *Scheduler) bindingCycle(
 		metrics.PodSchedulingDuration.WithLabelValues(getAttemptsLabel(assumedPodInfo)).Observe(metrics.SinceInSeconds(*assumedPodInfo.InitialAttemptTimestamp))
 		metrics.PodSchedulingSLIDuration.WithLabelValues(getAttemptsLabel(assumedPodInfo)).Observe(metrics.SinceInSeconds(*assumedPodInfo.InitialAttemptTimestamp))
 	}
-	// Run "postbind" plugins.
+	// Run "postbind" plugins. - 运行 PostBindPlugins - (1)（k8s-scheduler-chain）
 	fwk.RunPostBindPlugins(ctx, state, assumedPod, scheduleResult.SuggestedHost)
 
-	// At the end of a successful binding cycle, move up Pods if needed.
+	// At the end of a successful binding cycle, move up Pods if needed. - 在成功绑定周期结束时，如果需要，移动 Pods。
 	if len(podsToActivate.Map) != 0 {
 		sched.SchedulingQueue.Activate(logger, podsToActivate.Map)
 		// Unlike the logic in schedulingCycle(), we don't bother deleting the entries
-		// as `podsToActivate.Map` is no longer consumed.
+		// as `podsToActivate.Map` is no longer consumed. - 与 schedulingCycle() 中的逻辑不同，我们不忙于删除条目，因为 `podsToActivate.Map` 不再被使用。
 	}
 
 	return nil
@@ -971,9 +976,10 @@ func (sched *Scheduler) assume(logger klog.Logger, assumed *v1.Pod, host string)
 	return nil
 }
 
-// bind binds a pod to a given node defined in a binding object.
-// The precedence for binding is: (1) extenders and (2) framework plugins.
-// We expect this to run asynchronously, so we handle binding metrics internally.
+// bind binds a pod to a given node defined in a binding object. - 绑定一个 Pod 到 binding 对象中定义的节点。
+// The precedence for binding is: (1) extenders and (2) framework plugins. - 绑定的优先级是：(1) 扩展器和 (2) 框架插件。
+// We expect this to run asynchronously, so we handle binding metrics internally. - 我们期望这个运行是异步的，所以我们内部处理绑定指标。
+// 运行 BindPlugins 方法 - (2)（k8s-scheduler-chain）
 func (sched *Scheduler) bind(ctx context.Context, fwk framework.Framework, assumed *v1.Pod, targetNode string, state *framework.CycleState) (status *framework.Status) {
 	logger := klog.FromContext(ctx)
 	defer func() {
@@ -984,6 +990,7 @@ func (sched *Scheduler) bind(ctx context.Context, fwk framework.Framework, assum
 	if bound {
 		return framework.AsStatus(err)
 	}
+	// 运行 BindPlugins 方法 - (3)（k8s-scheduler-chain）
 	return fwk.RunBindPlugins(ctx, state, assumed, targetNode)
 }
 

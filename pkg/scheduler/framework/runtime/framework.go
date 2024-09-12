@@ -1277,7 +1277,8 @@ func (f *frameworkImpl) runPreBindPlugin(ctx context.Context, pl framework.PreBi
 	return status
 }
 
-// RunBindPlugins runs the set of configured bind plugins until one returns a non `Skip` status.
+// RunBindPlugins runs the set of configured bind plugins until one returns a non `Skip` status. - RunBindPlugins 运行一组已配置的绑定插件，直到有一个插件返回非 “跳过” 状态。
+// 运行 BindPlugins 方法 - (4)（k8s-scheduler-chain）
 func (f *frameworkImpl) RunBindPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
 	startTime := time.Now()
 	defer func() {
@@ -1326,7 +1327,8 @@ func (f *frameworkImpl) runBindPlugin(ctx context.Context, bp framework.BindPlug
 	return status
 }
 
-// RunPostBindPlugins runs the set of configured postbind plugins.
+// RunPostBindPlugins runs the set of configured postbind plugins. - RunPostBindPlugins 运行一组已配置的 postbind 插件。
+// 运行 PostBindPlugins - (2)（k8s-scheduler-chain）
 func (f *frameworkImpl) RunPostBindPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
 	startTime := time.Now()
 	defer func() {
@@ -1359,9 +1361,10 @@ func (f *frameworkImpl) runPostBindPlugin(ctx context.Context, pl framework.Post
 
 // RunReservePluginsReserve runs the Reserve method in the set of configured
 // reserve plugins. If any of these plugins returns an error, it does not
-// continue running the remaining ones and returns the error. In such a case,
-// the pod will not be scheduled and the caller will be expected to call
-// RunReservePluginsUnreserve.
+// continue running the remaining ones and returns the error. - RunReservePluginsReserve 会在已配置的一组预留插件中运行 Reserve 方法。如果这些插件中的任何一个返回错误，它将不会继续运行其余插件并返回该错误。
+// In such a case, the pod will not be scheduled and the caller will be expected to call
+// RunReservePluginsUnreserve. - 在这种情况下，Pod 将不会被调度，并且调用者应调用 RunReservePluginsUnreserve。
+// 运行 ReservePluginsReserve 方法 - (2)（k8s-scheduler-chain）
 func (f *frameworkImpl) RunReservePluginsReserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
 	startTime := time.Now()
 	defer func() {
@@ -1444,8 +1447,9 @@ func (f *frameworkImpl) runReservePluginUnreserve(ctx context.Context, pl framew
 // plugins returns a status other than "Success" or "Wait", it does not continue
 // running the remaining plugins and returns an error. Otherwise, if any of the
 // plugins returns "Wait", then this function will create and add waiting pod
-// to a map of currently waiting pods and return status with "Wait" code.
-// Pod will remain waiting pod for the minimum duration returned by the permit plugins.
+// to a map of currently waiting pods and return status with "Wait" code. - 如果这些插件中的任何一个返回 "Wait"，那么这个函数将创建并添加等待的 Pod 到当前等待的 Pod 映射中，并返回带有 "Wait" 代码的 Status。
+// Pod will remain waiting pod for the minimum duration returned by the permit plugins. - Pod 将保持等待状态，直到所有 Permit 插件返回的最小持续时间。
+// 运行 PermitPlugins 方法 - (2)（k8s-scheduler-chain）
 func (f *frameworkImpl) RunPermitPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (status *framework.Status) {
 	startTime := time.Now()
 	defer func() {
