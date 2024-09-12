@@ -83,7 +83,7 @@ func (sched *Scheduler) ScheduleOne(ctx context.Context) {
 	ctx = klog.NewContext(ctx, logger)
 	logger.V(4).Info("About to try and schedule pod", "pod", klog.KObj(pod))
 
-	// 获取 fwk（k8s-scheduler-chain）
+	// 获取 fwk - (1)（k8s-scheduler-chain）
 	fwk, err := sched.frameworkForPod(pod)
 	if err != nil {
 		// This shouldn't happen, because we only accept for scheduling the pods
@@ -379,7 +379,7 @@ func (sched *Scheduler) handleBindingCycleError(
 	sched.FailureHandler(ctx, fwk, podInfo, status, clearNominatedNode, start)
 }
 
-// 获取 fwk（k8s-scheduler-chain）
+// 获取 fwk - (2)（k8s-scheduler-chain）
 func (sched *Scheduler) frameworkForPod(pod *v1.Pod) (framework.Framework, error) {
 	fwk, ok := sched.Profiles[pod.Spec.SchedulerName]
 	if !ok {
